@@ -13,6 +13,7 @@ from . import utils as cvu
 from . import misc as cvm
 from . import defaults as cvd
 from . import parameters as cvpar
+from pdfrw import PdfWriter
 
 # Specify all externally visible classes this file defines
 __all__ = ['ParsObj', 'Result', 'BaseSim', 'BasePeople', 'Person', 'FlexDict', 'Contacts', 'Layer']
@@ -616,6 +617,40 @@ class BaseSim(ParsObj):
             output = spreadsheet.save(filename)
 
         return output
+
+    def to_pdfAdapter(self, filename=None, skip_pars=None):
+        '''
+        Export parameters and results as PDF file
+        '''
+        if skip_pars is None:
+            skip_pars = ['variant_map', 'vaccine_map'] # These include non-string keys so fail at sc.flattendict()
+
+        # Export results
+        result_df = self.to_df(date_index=True)
+
+        # Export parameters
+        pars = {k:v for k,v in self.pars.items() if k not in skip_pars}
+        par_df = pd.DataFrame.from_dict(sc.flattendict(pars, sep='_'), orient='index', columns=['Value'])
+        par_df.index.name = 'Parameter'
+
+        # Convert to pdf
+        spreadsheet = sc.Spreadsheet()
+        spreadsheet.freshbytes()
+        with pd.ExcelWriter(spreadsheet.bytes, engine='xlsxwriter') as writer:
+            result_df.to_excel(writer, sheet_name='Results')
+            par_df.to_excel(writer, sheet_name='Parameters')
+        spreadsheet.load()
+
+        opt = pd.read_excel(writer)
+        opt =PdfWriter()
+
+        if filename is None:
+            output = opt.write(filename)
+        else:
+            output = opt.save(filename)
+
+        return output
+
 
 
     def shrink(self, skip_attrs=None, in_place=True):
